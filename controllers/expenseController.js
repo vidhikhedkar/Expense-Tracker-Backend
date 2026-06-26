@@ -1,22 +1,49 @@
 const Expense = require("../models/Expense");
 
-// Add Expense
+// =========================
+// ADD EXPENSE
+// =========================
 exports.addExpense = async (req, res) => {
-  const expense = await Expense.create({
-    user: req.user._id,
-    ...req.body
-  });
+  try {
+    const { amount, category, description, date } = req.body;
 
-  res.status(201).json(expense);
+    if (!amount || !category || !date) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const expense = await Expense.create({
+      user: req.user._id,
+      amount,
+      category,
+      description,
+      date
+    });
+
+    res.status(201).json(expense);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// Get All Expenses
+
+// =========================
+// GET ALL EXPENSES
+// =========================
 exports.getExpenses = async (req, res) => {
-  const expenses = await Expense.find({ user: req.user._id }).sort({ date: -1 });
-  res.json(expenses);
+  try {
+    const expenses = await Expense.find({ user: req.user._id })
+      .sort({ date: -1 });
+
+    res.json(expenses);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// Get Single Expense by ID ✅ FIXED & EXPORTED
+
+// =========================
+// GET EXPENSE BY ID
+// =========================
 exports.getExpenseById = async (req, res) => {
   try {
     const expense = await Expense.findOne({
@@ -34,101 +61,100 @@ exports.getExpenseById = async (req, res) => {
   }
 };
 
-// Update Expense
+
+// =========================
+// UPDATE EXPENSE
+// =========================
 exports.updateExpense = async (req, res) => {
   try {
-    const expense = await Expense.findById(req.params.id);
+    const expense = await Expense.findOne({
+      _id: req.params.id,
+      user: req.user._id
+    });
 
     if (!expense) {
       return res.status(404).json({ message: "Expense not found" });
     }
 
-    if (expense.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    // Allow only these fields to be updated
-    const allowedUpdates = [
-      "title",
+    const allowedFields = [
       "amount",
       "category",
       "description",
       "date"
     ];
 
-    const updates = {};
-
-    allowedUpdates.forEach((field) => {
+    allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        expense[field] = req.body[field];
       }
     });
 
-    const updatedExpense = await Expense.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
+    const updatedExpense = await expense.save();
 
     res.json(updatedExpense);
   } catch (error) {
-    res.status(400).json({ message: "Invalid expense ID" });
+    res.status(400).json({ message: "Invalid request" });
   }
 };
 
 
-// Delete Expense
+// =========================
+// DELETE EXPENSE
+// =========================
 exports.deleteExpense = async (req, res) => {
-  const expense = await Expense.findById(req.params.id);
+  try {
+    const expense = await Expense.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user._id
+    });
 
-  if (!expense) {
-    return res.status(404).json({ message: "Expense not found" });
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    res.json({ message: "Expense deleted successfully" });
+  } catch (error) {
+    res.status(400).json({ message: "Invalid request" });
   }
-
-  if (expense.user.toString() !== req.user._id.toString()) {
-    return res.status(403).json({ message: "Forbidden" });
-  }
-
-  await expense.deleteOne();
-  res.json({ message: "Expense deleted" });
 };
 
 
-// Monthly Expense Summary
+// =========================
+// MONTHLY SUMMARY
+// =========================
 exports.getMonthlySummary = async (req, res) => {
-  const { month, year } = req.query;
+  try {
+    const { month, year } = req.query;
 
-  if (!month || !year) {
-    return res
-      .status(400)
-      .json({ message: "Month and year are required" });
-  }
-
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
-
-  const expenses = await Expense.find({
-    user: req.user._id,
-    date: { $gte: startDate, $lte: endDate }
-  });
-
-  let totalExpense = 0;
-  const byCategory = {};
-
-  expenses.forEach((expense) => {
-    totalExpense += expense.amount;
-
-    if (byCategory[expense.category]) {
-      byCategory[expense.category] += expense.amount;
-    } else {
-      byCategory[expense.category] = expense.amount;
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required" });
     }
-  });
 
-  res.json({
-    month: Number(month),
-    year: Number(year),
-    totalExpense,
-    byCategory
-  });
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const expenses = await Expense.find({
+      user: req.user._id,
+      date: { $gte: startDate, $lte: endDate }
+    });
+
+    let totalExpense = 0;
+    const byCategory = {};
+
+    expenses.forEach((expense) => {
+      totalExpense += expense.amount;
+
+      byCategory[expense.category] =
+        (byCategory[expense.category] || 0) + expense.amount;
+    });
+
+    res.json({
+      month: Number(month),
+      year: Number(year),
+      totalExpense,
+      byCategory
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };

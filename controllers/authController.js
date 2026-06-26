@@ -26,11 +26,14 @@ exports.register = async (req, res) => {
     password: hashedPassword
   });
 
+  const token = generateToken(user._id);
+
+  res.cookie("token", token, cookieOptions);
+
   res.status(201).json({
     _id: user._id,
     name: user.name,
-    email: user.email,
-    token: generateToken(user._id)
+    email: user.email
   });
 };
 
@@ -41,15 +44,18 @@ exports.login = async (req, res) => {
   const user = await User.findOne({ email });
 
   if (user && (await bcrypt.compare(password, user.password))) {
-    res.json({
+    const token = generateToken(user._id);
+
+    res.cookie("token", token, cookieOptions);
+
+    return res.json({
       _id: user._id,
       name: user.name,
-      email: user.email,
-      token: generateToken(user._id)
+      email: user.email
     });
-  } else {
-    res.status(401).json({ message: "Invalid email or password" });
   }
+
+  res.status(401).json({ message: "Invalid email or password" });
 };
 
 
@@ -62,29 +68,24 @@ exports.forgotPassword = async (req, res) => {
     return res.status(404).json({ message: "User not found" });
   }
 
-  // Generate reset token
   const resetToken = crypto.randomBytes(32).toString("hex");
 
-  // Hash token before saving
   user.resetPasswordToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
 
-  user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+  user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
 
   await user.save();
 
-  // Reset URL (frontend will handle this later)
   const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
 
-  // For now just return token (later you email it)
   res.json({
     message: "Password reset link generated",
     resetUrl
   });
 };
-
 
 // Reset Password
 exports.resetPassword = async (req, res) => {
