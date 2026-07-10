@@ -12,7 +12,7 @@ app.use(cookieParser());
 
 const allowedOrigins = [
     "http://localhost:5173",
-    "https://expense-tracker-frontend-eight-henna.vercel.app/api",
+    "https://expense-tracker-frontend-pi-wheat.vercel.app/",
 ];
 
 app.use(
