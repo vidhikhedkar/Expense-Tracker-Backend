@@ -12,12 +12,23 @@ app.use(cookieParser());
 
 const allowedOrigins = [
     "http://localhost:5173",
-    "https://expense-tracker-frontend-pi-wheat.vercel.app/",
+    "https://expense-tracker-frontend-pi-wheat.vercel.app",
 ];
 
 app.use(
     cors({
-        origin: allowedOrigins,
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+
+            if (
+                allowedOrigins.includes(origin) ||
+                origin.endsWith(".vercel.app")
+            ) {
+                return callback(null, true);
+            }
+
+            callback(new Error("Not allowed by CORS"));
+        },
         credentials: true,
     })
 );
